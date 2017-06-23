@@ -21,8 +21,8 @@ targetCompatibility = 1.7
 dependencies {
     compile "org.embulk:embulk-core:0.8.25"
     compile "org.scala-lang:scala-library:2.11.11"
-    compile 'org.komamitsu:fluency:1.1.0'
     compile group: 'com.typesafe.akka', name: 'akka-stream_2.11', version:'2.5.3'
+    compile 'org.velvia:msgpack4s_2.11:0.6.0'
     provided "org.embulk:embulk-core:0.8.24"
 }
 
