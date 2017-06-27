@@ -1,18 +1,15 @@
 package org.embulk.output.fluentd
 
-import org.embulk.spi.{
-  Column,
-  PageReader,
-  ColumnVisitor => EmbulkColumnVisitor
-}
+import org.embulk.spi.time.TimestampFormatter
+import org.embulk.spi.{Column, PageReader, ColumnVisitor => EmbulkColumnVisitor}
 
-case class ColumnVisitor(reader: PageReader) extends EmbulkColumnVisitor {
+case class ColumnVisitor(reader: PageReader, timestampFormatter: TimestampFormatter) extends EmbulkColumnVisitor {
   import scala.collection.mutable
 
   private val record = mutable.Map[String, AnyRef]()
 
   override def timestampColumn(column: Column): Unit =
-    value(column, reader.getTimestamp).foreach(v => put(column, v.toString))
+    value(column, reader.getTimestamp).foreach(v => put(column, timestampFormatter.format(v)))
 
   override def stringColumn(column: Column): Unit =
     value(column, reader.getString).foreach(v => put(column, v))
@@ -29,13 +26,12 @@ case class ColumnVisitor(reader: PageReader) extends EmbulkColumnVisitor {
   override def jsonColumn(column: Column): Unit =
     value(column, reader.getJson).foreach(v => put(column, v.toJson))
 
-  def value[A](column: Column, method: => (Column => A)): Option[A] = {
+  def value[A](column: Column, method: => (Column => A)): Option[A] =
     if (reader.isNull(column)) {
       None
     } else {
       Some(method(column))
     }
-  }
 
   def put[A <: AnyRef](column: Column, value: A): Unit = {
     record.put(column.getName, value)

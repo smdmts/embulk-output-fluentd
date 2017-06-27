@@ -3,7 +3,9 @@ package org.embulk.output.fluentd
 import java.util
 
 import org.embulk.config._
+import org.embulk.output.fluentd.sender._
 import org.embulk.spi._
+import wvlet.log.{LogFormatter, LogLevel, Logger}
 
 class FluentdOutputPlugin extends OutputPlugin {
 
@@ -11,28 +13,34 @@ class FluentdOutputPlugin extends OutputPlugin {
                            schema: Schema,
                            taskCount: Int,
                            control: OutputPlugin.Control): ConfigDiff = {
+    Logger.setDefaultLogLevel(LogLevel.OFF)
     val task = config.loadConfig(classOf[PluginTask])
-    Emitter.init(task)
-    control.run(task.dump())
-    Emitter.close()
-    Exec.newConfigDiff
+    SenderBuilder(task).withSession { session =>
+      val sender = session.build[Sender]
+      FluentdOutputPlugin.sender = Option(sender)
+      control.run(task.dump())
+      sender.close()
+      Exec.newConfigDiff
+    }
   }
 
   override def resume(taskSource: TaskSource,
                       schema: Schema,
                       taskCount: Int,
                       control: OutputPlugin.Control): ConfigDiff =
-    throw new UnsupportedOperationException(
-      "fluentd output plugin does not support resuming")
+    throw new UnsupportedOperationException("fluentd output plugin does not support resuming")
 
   override def cleanup(taskSource: TaskSource,
                        schema: Schema,
                        taskCount: Int,
                        successTaskReports: util.List[TaskReport]): Unit = {}
 
-  override def open(taskSource: TaskSource,
-                    schema: Schema,
-                    taskIndex: Int): TransactionalPageOutput =
-    FluentdTransactionalPageOutput(taskSource, schema, taskIndex)
+  override def open(taskSource: TaskSource, schema: Schema, taskIndex: Int): TransactionalPageOutput = {
+    FluentdTransactionalPageOutput(taskSource, schema, taskIndex, FluentdOutputPlugin.sender.get)
+  }
 
+}
+
+object FluentdOutputPlugin {
+  private var sender: Option[Sender] = None
 }

@@ -23,6 +23,7 @@ dependencies {
     compile "org.scala-lang:scala-library:2.11.11"
     compile group: 'com.typesafe.akka', name: 'akka-stream_2.11', version:'2.5.3'
     compile 'org.velvia:msgpack4s_2.11:0.6.0'
+    compile 'org.wvlet:airframe_2.11:0.15'
     provided "org.embulk:embulk-core:0.8.24"
 }
 
