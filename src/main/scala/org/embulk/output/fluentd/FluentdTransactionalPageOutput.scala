@@ -12,7 +12,7 @@ case class FluentdTransactionalPageOutput(taskSource: TaskSource, schema: Schema
   val task: PluginTask = taskSource.loadTask(classOf[PluginTask])
 
   def timestampFormatter(): TimestampFormatter =
-    new TimestampFormatter(task, Optional.of(task))
+    new TimestampFormatter(task, Optional.absent())
 
   override def add(page: Page): Unit = {
     sender(() => asIterator(page))

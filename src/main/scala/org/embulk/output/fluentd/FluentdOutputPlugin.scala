@@ -5,7 +5,7 @@ import java.util
 import org.embulk.config._
 import org.embulk.output.fluentd.sender._
 import org.embulk.spi._
-import wvlet.log.{LogFormatter, LogLevel, Logger}
+import wvlet.log._
 
 class FluentdOutputPlugin extends OutputPlugin {
 
