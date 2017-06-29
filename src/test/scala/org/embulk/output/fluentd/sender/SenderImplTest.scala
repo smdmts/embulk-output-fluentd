@@ -32,8 +32,8 @@ class SenderImplTest extends FlatSpec with Matchers {
     sender(recode)
     sender.close()
 
-    sender.futures.size shouldBe 1
-    sender.futures.forall { v =>
+    sender.commands.size shouldBe 1
+    sender.commands.forall { v =>
       v.value.get.isSuccess
     } shouldBe true
 
@@ -84,8 +84,8 @@ class SenderImplTest extends FlatSpec with Matchers {
     sender(recode)
     sender.close()
 
-    sender.futures.size shouldBe 3 // original + 2 times retry.
-    sender.futures.forall { v =>
+    sender.commands.size shouldBe 3 // original + 2 times retry.
+    sender.commands.forall { v =>
       v.value.get.isFailure // all failure
     } shouldBe true
 

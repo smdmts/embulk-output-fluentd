@@ -8,10 +8,16 @@ import scala.concurrent.Future
 
 case class ActorManager() {
 
-  implicit val system = ActorSystem("fluentd-emitter")
+  implicit val system = ActorSystem("fluentd-sender")
+
+  val decider: Supervision.Decider = {
+    case _: Exception => Supervision.Resume
+    case _            => Supervision.Stop
+  }
+
   implicit val materializer = ActorMaterializer(
     ActorMaterializerSettings(system)
-      .withSupervisionStrategy(_ => Supervision.Stop)
+      .withSupervisionStrategy(decider)
       .withDispatcher("blocking-dispatcher"))
 
   implicit val dispatcher: MessageDispatcher =

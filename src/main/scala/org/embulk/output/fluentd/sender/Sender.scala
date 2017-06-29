@@ -1,5 +1,7 @@
 package org.embulk.output.fluentd.sender
 
+import java.util.concurrent.atomic.AtomicInteger
+
 import akka._
 import akka.stream._
 import akka.stream.scaladsl._
@@ -29,7 +31,11 @@ case class SenderImpl private[sender] (host: String,
                                        retryDelayIntervalSecond: Int = 10)(implicit logger: Logger)
     extends Sender {
   import actorManager._
-  private[sender] val futures = ListBuffer.empty[Future[akka.Done]]
+  private[sender] val commands = ListBuffer.empty[Future[akka.Done]]
+
+  val recordCount        = new AtomicInteger(0)
+  val retriedRecordCount = new AtomicInteger(0)
+  val completedCount     = new AtomicInteger(0)
 
   val retryDelayIntervalSecondDuration: FiniteDuration = retryDelayIntervalSecond.seconds
 
@@ -37,14 +43,17 @@ case class SenderImpl private[sender] (host: String,
     instance.offer(value().toSeq)
 
   def close(): Unit = {
-    instance.complete() // wait for akka-stream termination.
+    // wait for akka-stream termination.
+    instance.complete()
     Await.result(instance.watchCompletion(), Duration.Inf)
-    while (!futures.forall(_.isCompleted)) {
-      Await.ready(Future.sequence(futures), Duration.Inf)
+    // wait for all commands completed.
+    while (!commands.forall(_.isCompleted)) {
+      Await.ready(Future.sequence(commands), Duration.Inf)
       Thread.sleep(1000)
     }
     Await.result(actorManager.terminate(), Duration.Inf)
-    logger.info("Transaction was closed.")
+    logger.info(
+      s"Transaction was closed. recordCount:$recordCount completedCount:$completedCount retriedRecordCount:$retriedRecordCount")
   }
 
   val instance: SourceQueueWithComplete[Seq[Map[String, AnyRef]]] = {
@@ -64,39 +73,42 @@ case class SenderImpl private[sender] (host: String,
       .run()
   }
 
+  def sendCommand(byteString: ByteString): Future[Done] =
+    Source
+      .single(byteString)
+      .via(senderFlow.tcpConnectionFlow(host, port))
+      .runWith(Sink.ignore)
+
   def tcpHandling(size: Int, byteString: ByteString): Future[Done] = {
     logger.info(s"Sending fluentd to ${size.toString} records.")
-    def _tcpHandling(size: Int, byteString: ByteString, c: Int)(first: Boolean): Future[Done] = {
-      val future = Source
-        .single(byteString)
-        .via(senderFlow.tcpConnectionFlow(host, port))
-        .runWith(Sink.ignore)
-      if (first) {
-        futures += future
-      }
-      future.onComplete {
+    recordCount.getAndAdd(size)
+    def _tcpHandling(size: Int, byteString: ByteString, c: Int)(retried: Boolean): Future[Done] = {
+      val futureCommand = sendCommand(byteString)
+      futureCommand.onComplete {
         case Success(_) =>
+          completedCount.addAndGet(size)
           logger.info(s"Sending fluentd to ${size.toString} records was completed.")
         case Failure(e) if c > 0 =>
           logger.info(
             s"Sending fluentd ${size.toString} records was failed. - will retry ${c - 1} more times ${retryDelayIntervalSecondDuration.toSeconds} seconds later.",
             e)
-          val retried =
-            akka.pattern.after(retryDelayIntervalSecondDuration, system.scheduler)(
-              _tcpHandling(size, byteString, c - 1)(first = false))
-          futures += retried
-        case Failure(e) if c == 0 =>
+          retriedRecordCount.addAndGet(size)
+          commands += akka.pattern.after(retryDelayIntervalSecondDuration, system.scheduler)(
+            _tcpHandling(size, byteString, c - 1)(retried = true))
+        case Failure(e) =>
           logger.error(
             s"Sending fluentd retry count is over and will be terminate soon. Please check your fluentd environment.",
             e)
           system.terminate()
           sys.error("Sending fluentd was terminated cause of retry count over.")
       }
-      future
+      if (!retried) {
+        commands += futureCommand
+      }
+      futureCommand
     }
-    val future = _tcpHandling(size, byteString, retryCount)(first = true)
-    future recoverWith {
-      case _:Exception =>
+    _tcpHandling(size, byteString, retryCount)(retried = false).recoverWith {
+      case _: Exception =>
         Future.successful(Done)
     }
   }
