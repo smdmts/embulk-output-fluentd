@@ -41,6 +41,7 @@ class SenderFlowImplTest extends FlatSpec with Matchers {
     val two = records(1).asInstanceOf[Vector[_]]
     two(0) should be(123) // time
     two(1).asInstanceOf[Map[_, _]] should be(map)
+    actorManager.internal.terminate()
   }
 
 }

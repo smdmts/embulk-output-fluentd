@@ -1,0 +1,27 @@
+version: 2
+jobs:
+  build:
+    executorType: docker
+    docker:
+      - image: hseeberger/scala-sbt
+    working_directory: /root/embulk-output-fluentd/
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restoring Cache
+          keys:
+            - sbt
+      - setup_remote_docker
+      - run:
+          name: prepare
+          command: sbt update exit
+      - save_cache:
+          name: Saving Cache sbt
+          key: sbt
+          paths:
+            - "/root/.sbt"
+            - "/root/.ivy2"
+      - run:
+          name: compile
+          command: |
+            sbt compile test scalafmt::test exit

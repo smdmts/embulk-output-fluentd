@@ -37,6 +37,10 @@ class SenderImplTest extends FlatSpec with Matchers {
       v.value.get.isSuccess
     } shouldBe true
 
+    sender.recordCount.get() should be(1)
+    sender.completedCount.get() should be(1)
+    sender.retriedRecordCount.get() should be(0)
+
     actorManager.internal.terminate()
 
   }
@@ -61,7 +65,6 @@ class SenderImplTest extends FlatSpec with Matchers {
         println(s"Server could not bind to $address:$port: ${e.getMessage}")
         system.terminate()
     }
-
   }
 
   "All Failure" should "retry count is correct" in {
@@ -88,6 +91,10 @@ class SenderImplTest extends FlatSpec with Matchers {
     sender.commands.forall { v =>
       v.value.get.isFailure // all failure
     } shouldBe true
+
+    sender.recordCount.get() should be(1)
+    sender.retriedRecordCount.get() should be(2)
+    sender.completedCount.get() should be(0)
 
     actorManager.terminate()
   }
