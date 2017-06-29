@@ -32,9 +32,21 @@ out:
   requestPerSeconds: 30
 ```
 
+```
+$ embulk gem install embulk-output-fluentd
+```
 
 ## Build
 
 ```
 $ ./gradlew gem  # -t to watch change of files and rebuild continuously
+```
+
+## Developing or Testing
+
+This plug-in is written by Scala. You could use sbt.
+
+```
+$ ./sbt 
+$ ./sbt test
 ```
