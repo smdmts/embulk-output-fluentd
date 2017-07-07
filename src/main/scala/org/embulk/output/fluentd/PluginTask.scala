@@ -13,13 +13,17 @@ trait PluginTask extends Task with TimestampFormatter.Task {
   @ConfigDefault("24224")
   def getPort: Int
 
-  @Config("asyncSize")
+  @Config("async_size")
   @ConfigDefault("1")
   def getAsyncSize: Int
 
-  @Config("requestPerSeconds")
+  @Config("request_per_seconds")
   @ConfigDefault("0")
   def getRequestPerSeconds: Int
+
+  @Config("request_grouping_size")
+  @ConfigDefault("100")
+  def getRequestGroupingSize: Int
 
   @Config("tag")
   def getTag: String

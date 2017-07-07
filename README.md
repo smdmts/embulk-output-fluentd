@@ -14,13 +14,16 @@
 |  host                                | string      | optional   | "127.0.0.1"              | fluentd servers host   |
 |  port                                | integer     | optional   | "24224"                  | fluentd servers port   |
 |  tag                                 | string      | required   |                          | tag of logs            |
-|  asyncSize                           | integer     | optional   | "1"                      | asynchronous parallelism size |
-|  requestPerSeconds                   | integer     | optional   | "0"                      | Sending throttle requests in per seconds. (default 0 is non throttle) (*1) |
+|  async_size                          | integer     | optional   | "1"                      | asynchronous parallelism size |
+|  request_grouping_size               | integer     | optional   | "100"                    | sending request grouping size (*1) |
+|  request_per_seconds                 | integer     | optional   | "0"                      | Sending throttle requests in per seconds. (default 0 is non throttle) (*2) |
 |  default_timezone                    | string      | optional   | UTC                      | |
 |  default_timestamp_format            | string      | optional   | %Y-%m-%d %H:%M:%S.%6N    | |
 
-*1: Throttling single request is approximately 27,000 records in a single time. If your fluentd server is overloading, adjustment this parameter.
+*1: Grouping Request of sending fluentd in a single time. (e.f. 100 is about 2750 records in single time.)  
+*2: Throttling single request of requestGroupingSize(just 100 of 2750 records) of bulk requests. 
 
+If your fluentd server is overloading, adjustment parameters(asyncSize,requestGroupingSize,requestPerSeconds) .
 
 ## Example
 

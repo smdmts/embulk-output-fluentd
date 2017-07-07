@@ -8,9 +8,6 @@ import wvlet.airframe.{Design, newDesign}
 
 object SenderBuilder {
 
-  // estimate 27000 records per/send
-  val sendingGroupSize = 1000
-
   def apply(task: PluginTask): Design = {
     implicit val logger = Exec.getLogger(classOf[Sender])
     newDesign
@@ -22,7 +19,7 @@ object SenderBuilder {
       .toProvider { (senderFlow: SenderFlow, actorManager: ActorManager) =>
         SenderImpl(task.getHost,
                    task.getPort,
-                   sendingGroupSize,
+                   task.getRequestGroupingSize,
                    task.getAsyncSize,
                    senderFlow,
                    actorManager,
