@@ -4,9 +4,10 @@ import java.io.IOException
 import java.net.ServerSocket
 import java.util.concurrent.ThreadLocalRandom
 
-import org.embulk.output.fluentd.sender.ActorManager
+import akka.actor.ActorSystem
+import org.embulk.output.fluentd.sender._
 
-case class TestActorManager() {
+case class TestActorManager()(implicit system:ActorSystem) {
   val internal     = ActorManager()
   val port: Int    = freePort(8888, 8999)
   val host: String = "127.0.0.1"

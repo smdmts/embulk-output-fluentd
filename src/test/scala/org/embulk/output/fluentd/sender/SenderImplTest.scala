@@ -3,20 +3,26 @@ package org.embulk.output.fluentd.sender
 import akka.actor.ActorSystem
 import akka.stream._
 import akka.stream.scaladsl._
-import akka.util.ByteString
-import org.scalatest.{FlatSpec, Matchers}
+import akka.pattern.ask
+import akka.testkit.{ImplicitSender, TestKit}
+import akka.util.{ByteString, Timeout}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, FlatSpecLike, Matchers}
 import org.embulk.output.fluentd.TestActorManager
 import org.slf4j.helpers.NOPLogger
 
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
+import scala.concurrent.duration._
 
-class SenderImplTest extends FlatSpec with Matchers {
+class SenderImplTest  extends TestKit(ActorSystem("MySpec")) with ImplicitSender with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   implicit val logger = NOPLogger.NOP_LOGGER
+  implicit val timeout       = Timeout(5.seconds)
 
   "Sending Success" should "receive dummy server" in {
     val actorManager = TestActorManager()
-    bootDummyServer(actorManager.internal.system, "127.0.0.1", actorManager.port)
+    bootDummyServer(system, "127.0.0.1", actorManager.port)
     Thread.sleep(100) // wait for server boot.
     val sender = SenderImpl(
       "localhost",
@@ -32,21 +38,19 @@ class SenderImplTest extends FlatSpec with Matchers {
     sender(recode)
     sender.close()
 
-    sender.commands.size shouldBe 1
-    sender.commands.forall { v =>
-      v.value.get.isSuccess
-    } shouldBe true
+    val f      = (actorManager.internal.supervisor ? GetStatus).mapTo[Result]
+    val result = Await.result(f, Duration.Inf)
 
-    sender.recordCount.get() should be(1)
-    sender.completedCount.get() should be(1)
-    sender.retriedRecordCount.get() should be(0)
+    result.record should be(1)
+    result.complete should be(1)
+    result.retried should be(0)
 
     actorManager.internal.terminate()
 
   }
 
   def bootDummyServer(system: ActorSystem, address: String, port: Int): Unit = {
-    implicit val sys = system
+    implicit val s = system
     import system.dispatcher
     implicit val materializer = ActorMaterializer()
 
@@ -68,9 +72,9 @@ class SenderImplTest extends FlatSpec with Matchers {
   }
 
   "All Failure" should "retry count is correct" in {
-    val actorManager    = ActorManager()
-    implicit val system = actorManager.system
-    implicit val mat    = ActorMaterializer(ActorMaterializerSettings(system).withDebugLogging(true).withFuzzing(true))
+    val actorManager = ActorManager()
+    implicit val s = system
+    implicit val mat    = ActorMaterializer(ActorMaterializerSettings(system).withDebugLogging(true))
     val sender = SenderImpl(
       "localhost",
       port = 9999,
@@ -87,14 +91,12 @@ class SenderImplTest extends FlatSpec with Matchers {
     sender(recode)
     sender.close()
 
-    sender.commands.size shouldBe 3 // original + 2 times retry.
-    sender.commands.forall { v =>
-      v.value.get.isFailure // all failure
-    } shouldBe true
+    val f      = (actorManager.supervisor ? GetStatus).mapTo[Result]
+    val result = Await.result(f, Duration.Inf)
 
-    sender.recordCount.get() should be(1)
-    sender.retriedRecordCount.get() should be(2)
-    sender.completedCount.get() should be(0)
+    result.record should be(1)
+    result.retried should be(2)
+    result.complete should be(0)
 
     actorManager.terminate()
   }

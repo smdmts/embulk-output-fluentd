@@ -1,28 +1,26 @@
 package org.embulk.output.fluentd.sender
 
-import akka.actor.{ActorSystem, Terminated}
+import akka.actor.{ActorRef, ActorSystem, Props, Terminated}
 import akka.dispatch.MessageDispatcher
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 
 import scala.concurrent.Future
 
-case class ActorManager() {
-
-  implicit val system = ActorSystem("fluentd-sender")
-
+case class ActorManager(implicit actorSystem:ActorSystem) {
+  val supervisor: ActorRef = actorSystem.actorOf(Props[Counter])
   val decider: Supervision.Decider = {
     case _: Exception => Supervision.Resume
     case _            => Supervision.Stop
   }
 
   implicit val materializer = ActorMaterializer(
-    ActorMaterializerSettings(system)
+    ActorMaterializerSettings(actorSystem)
       .withSupervisionStrategy(decider)
       .withDispatcher("blocking-dispatcher"))
 
   implicit val dispatcher: MessageDispatcher =
-    system.dispatchers.lookup("blocking-dispatcher")
+    actorSystem.dispatchers.lookup("blocking-dispatcher")
 
-  def terminate(): Future[Terminated] = system.terminate()
+  def terminate(): Future[Terminated] = actorSystem.terminate()
 
 }
