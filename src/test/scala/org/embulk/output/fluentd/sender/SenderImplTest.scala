@@ -3,20 +3,26 @@ package org.embulk.output.fluentd.sender
 import akka.actor.ActorSystem
 import akka.stream._
 import akka.stream.scaladsl._
-import akka.util.ByteString
-import org.scalatest.{FlatSpec, Matchers}
+import akka.pattern.ask
+import akka.util.{ByteString, Timeout}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import org.embulk.output.fluentd.TestActorManager
 import org.slf4j.helpers.NOPLogger
 
+import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
+import scala.concurrent.duration._
 
-class SenderImplTest extends FlatSpec with Matchers {
+class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
 
-  implicit val logger = NOPLogger.NOP_LOGGER
+  implicit val logger  = NOPLogger.NOP_LOGGER
+  implicit val timeout = Timeout(5.seconds)
 
   "Sending Success" should "receive dummy server" in {
-    val actorManager = TestActorManager()
-    bootDummyServer(actorManager.internal.system, "127.0.0.1", actorManager.port)
+
+    val system       = ActorSystem("MySpec")
+    val actorManager = TestActorManager(system)
+    bootDummyServer(system, "127.0.0.1", actorManager.port)
     Thread.sleep(100) // wait for server boot.
     val sender = SenderImpl(
       "localhost",
@@ -24,31 +30,24 @@ class SenderImplTest extends FlatSpec with Matchers {
       groupedSize = 1,
       asyncSize = 1,
       SenderFlowImpl("tag", 0),
-      actorManager.internal
+      actorManager
     )
 
     val recode: () => Iterator[Map[String, AnyRef]] =
       () => Seq(Map[String, AnyRef]("a" -> Int.box(1), "b" -> "c")).toIterator
     sender(recode)
-    sender.close()
+    sender.waitForComplete()
 
-    sender.commands.size shouldBe 1
-    sender.commands.forall { v =>
-      v.value.get.isSuccess
-    } shouldBe true
-
-    sender.recordCount.get() should be(1)
-    sender.completedCount.get() should be(1)
-    sender.retriedRecordCount.get() should be(0)
-
-    actorManager.internal.terminate()
+    actorManager.testActorRef.underlyingActor.counter should be(1)
+    actorManager.testActorRef.underlyingActor.complete should be(1)
+    actorManager.testActorRef.underlyingActor.retried should be(0)
 
   }
 
   def bootDummyServer(system: ActorSystem, address: String, port: Int): Unit = {
-    implicit val sys = system
-    import system.dispatcher
-    implicit val materializer = ActorMaterializer()
+    implicit val ec = ExecutionContext.global
+    implicit val s  = system
+    implicit val m  = ActorMaterializer()
 
     val handler = Sink.foreach[Tcp.IncomingConnection] { conn =>
       println("Client connected from: " + conn.remoteAddress)
@@ -63,14 +62,12 @@ class SenderImplTest extends FlatSpec with Matchers {
         println("Server started, listening on: " + b.localAddress)
       case Failure(e) =>
         println(s"Server could not bind to $address:$port: ${e.getMessage}")
-        system.terminate()
     }
   }
 
   "All Failure" should "retry count is correct" in {
-    val actorManager    = ActorManager()
-    implicit val system = actorManager.system
-    implicit val mat    = ActorMaterializer(ActorMaterializerSettings(system).withDebugLogging(true).withFuzzing(true))
+    val system       = ActorSystem("MySpec")
+    val actorManager = TestActorManager(system)
     val sender = SenderImpl(
       "localhost",
       port = 9999,
@@ -85,18 +82,12 @@ class SenderImplTest extends FlatSpec with Matchers {
     val recode: () => Iterator[Map[String, AnyRef]] =
       () => Seq(Map[String, AnyRef]("a" -> Int.box(1), "b" -> "c")).toIterator
     sender(recode)
-    sender.close()
+    sender.waitForComplete()
 
-    sender.commands.size shouldBe 3 // original + 2 times retry.
-    sender.commands.forall { v =>
-      v.value.get.isFailure // all failure
-    } shouldBe true
+    actorManager.testActorRef.underlyingActor.counter should be(1)
+    actorManager.testActorRef.underlyingActor.retried should be(2)
+    actorManager.testActorRef.underlyingActor.complete should be(0)
 
-    sender.recordCount.get() should be(1)
-    sender.retriedRecordCount.get() should be(2)
-    sender.completedCount.get() should be(0)
-
-    actorManager.terminate()
   }
 
 }

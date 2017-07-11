@@ -1,14 +1,12 @@
 package org.embulk.output.fluentd.sender
 
-import java.util.concurrent.atomic.AtomicInteger
-
 import akka._
+import akka.pattern.ask
 import akka.stream._
 import akka.stream.scaladsl._
-import akka.util.ByteString
+import akka.util.{ByteString, Timeout}
 import org.slf4j.Logger
 
-import scala.collection.mutable.ListBuffer
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util._
@@ -31,29 +29,42 @@ case class SenderImpl private[sender] (host: String,
                                        retryDelayIntervalSecond: Int = 10)(implicit logger: Logger)
     extends Sender {
   import actorManager._
-  private[sender] val commands = ListBuffer.empty[Future[akka.Done]]
 
-  val recordCount        = new AtomicInteger(0)
-  val retriedRecordCount = new AtomicInteger(0)
-  val completedCount     = new AtomicInteger(0)
+  system.scheduler.schedule(0.seconds, 30.seconds, supervisor, LogStatus(logger))
 
   val retryDelayIntervalSecondDuration: FiniteDuration = retryDelayIntervalSecond.seconds
 
-  def apply(value: () => Iterator[Map[String, AnyRef]]): Future[QueueOfferResult] =
-    instance.offer(value().toSeq)
+  def apply(value: () => Iterator[Map[String, AnyRef]]): Future[QueueOfferResult] = {
+    val request = value().toSeq
+    actorManager.supervisor ! Record(request.size)
+    instance.offer(request)
+  }
 
   def close(): Unit = {
     // wait for akka-stream termination.
     instance.complete()
-    Await.result(instance.watchCompletion(), Duration.Inf)
-    // wait for all commands completed.
-    while (!commands.forall(_.isCompleted)) {
-      Await.ready(Future.sequence(commands), Duration.Inf)
+    val result = waitForComplete()
+    Await.result(actorManager.terminate(), Duration.Inf)
+    actorManager.system.terminate()
+    logger.info(
+      s"Transaction was closed. recordCount:${result.record} completedCount:${result.complete} retriedRecordCount:${result.retried}")
+  }
+
+  def waitForComplete(): Result = {
+    var result: Option[Result] = None
+    implicit val timeout       = Timeout(5.seconds)
+    while (result.isEmpty) {
+      (actorManager.supervisor ? GetStatus).onSuccess {
+        case Result(recordCount, complete, failed, retried) =>
+          if (recordCount == (complete + failed)) {
+            result = Some(Result(recordCount, complete, failed, retried))
+          }
+        case Stop(recordCount, complete, failed, retried) =>
+          result = Some(Result(recordCount, complete, failed, retried))
+      }
       Thread.sleep(1000)
     }
-    Await.result(actorManager.terminate(), Duration.Inf)
-    logger.info(
-      s"Transaction was closed. recordCount:$recordCount completedCount:$completedCount retriedRecordCount:$retriedRecordCount")
+    result.get
   }
 
   val instance: SourceQueueWithComplete[Seq[Map[String, AnyRef]]] = {
@@ -80,30 +91,25 @@ case class SenderImpl private[sender] (host: String,
       .runWith(Sink.ignore)
 
   def tcpHandling(size: Int, byteString: ByteString): Future[Done] = {
-    logger.info(s"Sending fluentd to ${size.toString} records.")
-    recordCount.getAndAdd(size)
     def _tcpHandling(size: Int, byteString: ByteString, c: Int)(retried: Boolean): Future[Done] = {
       val futureCommand = sendCommand(byteString)
       futureCommand.onComplete {
         case Success(_) =>
-          completedCount.addAndGet(size)
-          logger.info(s"Sending fluentd to ${size.toString} records was completed.")
+          actorManager.supervisor ! Complete(size)
         case Failure(e) if c > 0 =>
           logger.info(
             s"Sending fluentd ${size.toString} records was failed. - will retry ${c - 1} more times ${retryDelayIntervalSecondDuration.toSeconds} seconds later.",
             e)
-          retriedRecordCount.addAndGet(size)
-          commands += akka.pattern.after(retryDelayIntervalSecondDuration, system.scheduler)(
+          actorManager.supervisor ! Retried(size)
+          akka.pattern.after(retryDelayIntervalSecondDuration, actorManager.system.scheduler)(
             _tcpHandling(size, byteString, c - 1)(retried = true))
         case Failure(e) =>
+          actorManager.supervisor ! Failed(size)
           logger.error(
             s"Sending fluentd retry count is over and will be terminate soon. Please check your fluentd environment.",
             e)
-          system.terminate()
           sys.error("Sending fluentd was terminated cause of retry count over.")
-      }
-      if (!retried) {
-        commands += futureCommand
+          instance.complete()
       }
       futureCommand
     }
