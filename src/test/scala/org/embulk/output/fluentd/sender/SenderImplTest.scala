@@ -1,16 +1,15 @@
 package org.embulk.output.fluentd.sender
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor.ActorSystem
 import akka.stream._
 import akka.stream.scaladsl._
-import akka.pattern.ask
 import akka.util.{ByteString, Timeout}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import org.embulk.output.fluentd.TestActorManager
 import org.slf4j.helpers.NOPLogger
 
-import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Success}
 import scala.concurrent.duration._
 
 class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
@@ -18,11 +17,11 @@ class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
   implicit val logger  = NOPLogger.NOP_LOGGER
   implicit val timeout = Timeout(5.seconds)
 
-  "Sending Success" should "receive dummy server" in {
+  "Sending Success fast server" should "receive dummy server" in {
 
     val system       = ActorSystem("MySpec")
     val actorManager = TestActorManager(system)
-    bootDummyServer(system, "127.0.0.1", actorManager.port)
+    bootDummyServer(system, "127.0.0.1", actorManager.port, Duration.create(0, TimeUnit.SECONDS))
     Thread.sleep(100) // wait for server boot.
     val sender = SenderImpl(
       "localhost",
@@ -33,35 +32,63 @@ class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
       actorManager
     )
 
-    val recode: () => Iterator[Map[String, AnyRef]] =
-      () => Seq(Map[String, AnyRef]("a" -> Int.box(1), "b" -> "c")).toIterator
-    sender(recode)
+    (1 to 100).foreach { _ =>
+      sender(recode)
+    }
+
     sender.waitForComplete()
 
-    actorManager.testActorRef.underlyingActor.counter should be(1)
-    actorManager.testActorRef.underlyingActor.complete should be(1)
+    actorManager.testActorRef.underlyingActor.counter should be(100)
+    actorManager.testActorRef.underlyingActor.complete should be(100)
     actorManager.testActorRef.underlyingActor.retried should be(0)
+
+    actorManager.system.terminate()
 
   }
 
-  def bootDummyServer(system: ActorSystem, address: String, port: Int): Unit = {
-    implicit val ec = ExecutionContext.global
-    implicit val s  = system
-    implicit val m  = ActorMaterializer()
+  "Sending Success slow server" should "receive dummy server" in {
 
-    val handler = Sink.foreach[Tcp.IncomingConnection] { conn =>
-      println("Client connected from: " + conn.remoteAddress)
-      conn handleWith Flow[ByteString]
+    val system       = ActorSystem("MySpec")
+    val actorManager = TestActorManager(system)
+    bootDummyServer(system, "127.0.0.1", actorManager.port, Duration.create(3, TimeUnit.SECONDS))
+    Thread.sleep(100) // wait for server boot.
+    val sender = SenderImpl(
+      "localhost",
+      port = actorManager.port,
+      groupedSize = 1,
+      asyncSize = 1,
+      SenderFlowImpl("tag", 0),
+      actorManager
+    )
+
+    (1 to 2).foreach { _ =>
+      sender(recode)
     }
 
-    val connections = Tcp().bind(address, port)
-    val binding     = connections.to(handler).run()
+    sender.waitForComplete()
 
-    binding.onComplete {
-      case Success(b) =>
-        println("Server started, listening on: " + b.localAddress)
-      case Failure(e) =>
-        println(s"Server could not bind to $address:$port: ${e.getMessage}")
+    actorManager.testActorRef.underlyingActor.counter should be(2)
+    actorManager.testActorRef.underlyingActor.complete should be(2)
+    actorManager.testActorRef.underlyingActor.retried should be(0)
+
+    actorManager.system.terminate()
+  }
+
+  def recode: () => Iterator[Map[String, AnyRef]] =
+    () => Seq(Map[String, AnyRef]("a" -> Int.box(1), "b" -> "c")).toIterator
+
+  def bootDummyServer(system: ActorSystem, address: String, port: Int, duration: Duration): Unit = {
+    implicit val sys          = system
+    implicit val materializer = ActorMaterializer()
+    val connections           = Tcp().bind(address, port)
+    connections runForeach { connection =>
+      val echo = Flow[ByteString]
+        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 256, allowTruncation = true))
+        .map { v =>
+          TimeUnit.SECONDS.sleep(duration.toSeconds)
+          ByteString(v.utf8String)
+        }
+      connection.handleWith(echo)
     }
   }
 
@@ -88,6 +115,7 @@ class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
     actorManager.testActorRef.underlyingActor.retried should be(2)
     actorManager.testActorRef.underlyingActor.complete should be(0)
 
+    actorManager.system.terminate()
   }
 
 }
