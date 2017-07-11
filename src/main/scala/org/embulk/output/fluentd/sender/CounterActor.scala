@@ -1,10 +1,9 @@
 package org.embulk.output.fluentd.sender
 
 import akka.actor._
-import org.embulk.spi.Exec
+import org.slf4j.Logger
 
 class Counter extends Actor {
-  private val logger = Exec.getLogger(classOf[Counter])
   var complete       = 0
   var failed         = 0
   var retried        = 0
@@ -16,8 +15,12 @@ class Counter extends Actor {
     case Failed(v)   => failed = failed + v
     case Retried(v)  => retried = retried + v
     case GetStatus =>
-      sender() ! Result(counter, complete, failed, retried)
-    case LogStatus =>
+      if (failed == 0) {
+        sender() ! Result(counter, complete, failed, retried)
+      } else {
+        sender() ! Stop(counter, complete, failed, retried)
+      }
+    case LogStatus(logger) =>
       logger.info(
         s"$counter was queued and $complete records was completed. $failed records was failed and retried $retried records.")
   }
@@ -25,7 +28,8 @@ class Counter extends Actor {
 
 case class Result(record: Int, complete: Int, failed: Int, retried: Int)
 case object GetStatus
-case object LogStatus
+case class Stop(record: Int, complete: Int, failed: Int, retried: Int)
+case class LogStatus(logger:Logger)
 case class Record(count: Int)  extends AnyVal
 case class Complete(count: Int) extends AnyVal
 case class Failed(count: Int)   extends AnyVal

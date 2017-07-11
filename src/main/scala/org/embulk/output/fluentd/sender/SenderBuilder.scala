@@ -16,7 +16,7 @@ object SenderBuilder {
       .bind[SenderFlow]
       .toInstance(SenderFlowImpl(task.getTag, Instant.now().getEpochSecond))
       .bind[ActorManager]
-      .toInstance(ActorManager())
+      .toInstance(ActorManagerImpl())
       .bind[Sender]
       .toProvider { (senderFlow: SenderFlow, actorManager: ActorManager) =>
         SenderImpl(task.getHost,

@@ -1,6 +1,7 @@
 package org.embulk.output.fluentd.sender
 
 import akka.actor.ActorSystem
+import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
 import akka.stream.scaladsl.Keep
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.testkit.{ImplicitSender, TestKit}
@@ -17,9 +18,9 @@ class SenderFlowImplTest extends TestKit(ActorSystem("MySpec")) with ImplicitSen
   }
 
   "msgPackFlow" should "converting Success" in {
-    val actorManager = TestActorManager()
-    implicit val s   = system
-    implicit val m   = actorManager.internal.materializer
+    val actorManager = TestActorManager(system)
+    implicit val materializer = ActorMaterializer(
+      ActorMaterializerSettings(system))
     val map          = Map[String, AnyRef]("a" -> Int.box(1), "b" -> "e")
     val request      = Seq(Seq(map), Seq(map))
 
@@ -46,7 +47,7 @@ class SenderFlowImplTest extends TestKit(ActorSystem("MySpec")) with ImplicitSen
     val two = records(1).asInstanceOf[Vector[_]]
     two(0) should be(123) // time
     two(1).asInstanceOf[Map[_, _]] should be(map)
-    actorManager.internal.terminate()
+    actorManager.system.terminate()
   }
 
 }

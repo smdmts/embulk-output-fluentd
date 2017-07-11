@@ -4,11 +4,15 @@ import java.io.IOException
 import java.net.ServerSocket
 import java.util.concurrent.ThreadLocalRandom
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
+import akka.stream.ActorMaterializer
+import akka.testkit.TestActorRef
 import org.embulk.output.fluentd.sender._
 
-case class TestActorManager()(implicit system:ActorSystem) {
-  val internal     = ActorManager()
+import scala.concurrent.ExecutionContext
+
+case class TestActorManager(s: ActorSystem) extends ActorManager {
+  implicit val system = s
   val port: Int    = freePort(8888, 8999)
   val host: String = "127.0.0.1"
 
@@ -29,4 +33,12 @@ case class TestActorManager()(implicit system:ActorSystem) {
       case _: IOException =>
         false
     }
+
+  val testActorRef =  TestActorRef(new Counter)
+
+  override val supervisor: ActorRef = testActorRef
+  override implicit val materializer: ActorMaterializer = ActorMaterializer()
+  override implicit val dispatcher: ExecutionContext = ExecutionContext.global
 }
+
+

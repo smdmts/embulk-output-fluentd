@@ -30,7 +30,7 @@ case class SenderImpl private[sender] (host: String,
     extends Sender {
   import actorManager._
 
-  //system.scheduler.schedule(0.seconds, 30.seconds, supervisor, LogStatus)
+  system.scheduler.schedule(0.seconds, 30.seconds, supervisor, LogStatus(logger))
 
   val retryDelayIntervalSecondDuration: FiniteDuration = retryDelayIntervalSecond.seconds
 
@@ -45,6 +45,7 @@ case class SenderImpl private[sender] (host: String,
     instance.complete()
     val result = waitForComplete()
     Await.result(actorManager.terminate(), Duration.Inf)
+    actorManager.system.terminate()
     logger.info(
       s"Transaction was closed. recordCount:${result.record} completedCount:${result.complete} retriedRecordCount:${result.retried}")
   }
@@ -58,6 +59,8 @@ case class SenderImpl private[sender] (host: String,
           if (recordCount == (complete + failed)) {
             result = Some(Result(recordCount, complete, failed, retried))
           }
+        case Stop(recordCount, complete, failed, retried) =>
+          result = Some(Result(recordCount, complete, failed, retried))
       }
       Thread.sleep(1000)
     }
@@ -98,15 +101,15 @@ case class SenderImpl private[sender] (host: String,
             s"Sending fluentd ${size.toString} records was failed. - will retry ${c - 1} more times ${retryDelayIntervalSecondDuration.toSeconds} seconds later.",
             e)
           actorManager.supervisor ! Retried(size)
-          akka.pattern.after(retryDelayIntervalSecondDuration, actorManager.actorSystem.scheduler)(
+          akka.pattern.after(retryDelayIntervalSecondDuration, actorManager.system.scheduler)(
             _tcpHandling(size, byteString, c - 1)(retried = true))
         case Failure(e) =>
           actorManager.supervisor ! Failed(size)
           logger.error(
             s"Sending fluentd retry count is over and will be terminate soon. Please check your fluentd environment.",
             e)
-          actorManager.actorSystem.terminate()
           sys.error("Sending fluentd was terminated cause of retry count over.")
+          instance.complete()
       }
       futureCommand
     }
