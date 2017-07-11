@@ -13,8 +13,8 @@ import scala.concurrent.ExecutionContext
 
 case class TestActorManager(s: ActorSystem) extends ActorManager {
   implicit val system = s
-  val port: Int    = freePort(8888, 8999)
-  val host: String = "127.0.0.1"
+  val port: Int       = freePort(8888, 8999)
+  val host: String    = "127.0.0.1"
 
   def freePort(from: Int, to: Int): Int = {
     var port = from
@@ -34,11 +34,9 @@ case class TestActorManager(s: ActorSystem) extends ActorManager {
         false
     }
 
-  val testActorRef =  TestActorRef(new Counter)
+  val testActorRef = TestActorRef(new Counter)
 
-  override val supervisor: ActorRef = testActorRef
+  override val supervisor: ActorRef                     = testActorRef
   override implicit val materializer: ActorMaterializer = ActorMaterializer()
-  override implicit val dispatcher: ExecutionContext = ExecutionContext.global
+  override implicit val dispatcher: ExecutionContext    = ExecutionContext.global
 }
-
-

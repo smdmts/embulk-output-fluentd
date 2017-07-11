@@ -5,7 +5,7 @@ import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class ActorManagerImpl(implicit val system:ActorSystem) extends ActorManager {
+case class ActorManagerImpl(implicit val system: ActorSystem) extends ActorManager {
   val supervisor: ActorRef = system.actorOf(Props[Counter])
   val decider: Supervision.Decider = {
     case _: Exception => Supervision.Resume
@@ -21,9 +21,9 @@ case class ActorManagerImpl(implicit val system:ActorSystem) extends ActorManage
 }
 
 trait ActorManager {
-  implicit val system:ActorSystem
+  implicit val system: ActorSystem
   val supervisor: ActorRef
-  implicit val materializer:ActorMaterializer
+  implicit val materializer: ActorMaterializer
   def terminate(): Future[Terminated] = system.terminate()
   implicit val dispatcher: ExecutionContext
 }

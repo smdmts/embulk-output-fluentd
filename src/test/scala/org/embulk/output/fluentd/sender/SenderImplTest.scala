@@ -13,14 +13,14 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 import scala.concurrent.duration._
 
-class SenderImplTest  extends FlatSpecLike with Matchers with BeforeAndAfterAll {
+class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
 
-  implicit val logger = NOPLogger.NOP_LOGGER
-  implicit val timeout       = Timeout(5.seconds)
+  implicit val logger  = NOPLogger.NOP_LOGGER
+  implicit val timeout = Timeout(5.seconds)
 
   "Sending Success" should "receive dummy server" in {
 
-    val system = ActorSystem("MySpec")
+    val system       = ActorSystem("MySpec")
     val actorManager = TestActorManager(system)
     bootDummyServer(system, "127.0.0.1", actorManager.port)
     Thread.sleep(100) // wait for server boot.
@@ -46,8 +46,8 @@ class SenderImplTest  extends FlatSpecLike with Matchers with BeforeAndAfterAll 
 
   def bootDummyServer(system: ActorSystem, address: String, port: Int): Unit = {
     implicit val ec = ExecutionContext.global
-    implicit val s = system
-    implicit val m = ActorMaterializer()
+    implicit val s  = system
+    implicit val m  = ActorMaterializer()
 
     val handler = Sink.foreach[Tcp.IncomingConnection] { conn =>
       println("Client connected from: " + conn.remoteAddress)
@@ -66,7 +66,7 @@ class SenderImplTest  extends FlatSpecLike with Matchers with BeforeAndAfterAll 
   }
 
   "All Failure" should "retry count is correct" in {
-    val system = ActorSystem("MySpec")
+    val system       = ActorSystem("MySpec")
     val actorManager = TestActorManager(system)
     val sender = SenderImpl(
       "localhost",

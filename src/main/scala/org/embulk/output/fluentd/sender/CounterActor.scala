@@ -4,10 +4,10 @@ import akka.actor._
 import org.slf4j.Logger
 
 class Counter extends Actor {
-  var complete       = 0
-  var failed         = 0
-  var retried        = 0
-  var counter        = 0
+  var complete = 0
+  var failed   = 0
+  var retried  = 0
+  var counter  = 0
   override def receive: Receive = {
     case Record(v) =>
       counter = counter + v
@@ -29,8 +29,8 @@ class Counter extends Actor {
 case class Result(record: Int, complete: Int, failed: Int, retried: Int)
 case object GetStatus
 case class Stop(record: Int, complete: Int, failed: Int, retried: Int)
-case class LogStatus(logger:Logger)
-case class Record(count: Int)  extends AnyVal
+case class LogStatus(logger: Logger)
+case class Record(count: Int)   extends AnyVal
 case class Complete(count: Int) extends AnyVal
 case class Failed(count: Int)   extends AnyVal
 case class Retried(count: Int)  extends AnyVal

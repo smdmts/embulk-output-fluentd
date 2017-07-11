@@ -9,7 +9,12 @@ import org.velvia.MsgPackUtils._
 import org.embulk.output.fluentd.TestActorManager
 import org.scalatest._
 
-class SenderFlowImplTest extends TestKit(ActorSystem("MySpec")) with ImplicitSender with FlatSpecLike with Matchers with BeforeAndAfterAll {
+class SenderFlowImplTest
+    extends TestKit(ActorSystem("MySpec"))
+    with ImplicitSender
+    with FlatSpecLike
+    with Matchers
+    with BeforeAndAfterAll {
 
   val target = SenderFlowImpl("dummy", 123)
 
@@ -18,11 +23,10 @@ class SenderFlowImplTest extends TestKit(ActorSystem("MySpec")) with ImplicitSen
   }
 
   "msgPackFlow" should "converting Success" in {
-    val actorManager = TestActorManager(system)
-    implicit val materializer = ActorMaterializer(
-      ActorMaterializerSettings(system))
-    val map          = Map[String, AnyRef]("a" -> Int.box(1), "b" -> "e")
-    val request      = Seq(Seq(map), Seq(map))
+    val actorManager          = TestActorManager(system)
+    implicit val materializer = ActorMaterializer(ActorMaterializerSettings(system))
+    val map                   = Map[String, AnyRef]("a" -> Int.box(1), "b" -> "e")
+    val request               = Seq(Seq(map), Seq(map))
 
     val (pub, sub) = TestSource
       .probe[Seq[Seq[Map[String, AnyRef]]]]
