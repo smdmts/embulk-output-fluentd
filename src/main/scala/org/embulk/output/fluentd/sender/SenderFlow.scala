@@ -15,11 +15,17 @@ trait SenderFlow {
       implicit s: ActorSystem): Flow[ByteString, ByteString, Future[OutgoingConnection]]
 }
 
-case class SenderFlowImpl private[sender] (tag: String, unixtime: Long) extends SenderFlow {
+case class SenderFlowImpl private[sender] (tag: String, unixtime: Long, timeKeyOpt: Option[String])
+    extends SenderFlow {
   override val msgPackFlow: Flow[Seq[Seq[Map[String, AnyRef]]], (Int, ByteString), NotUsed] =
     Flow[Seq[Seq[Map[String, AnyRef]]]].map { value =>
       val packing = value.flatten.map { v =>
-        Seq(unixtime, v)
+        val eventTime = for {
+          timeKey   <- timeKeyOpt
+          timeValue <- v.get(timeKey)
+        } yield timeValue.toString.toLong
+        val logTime = eventTime.getOrElse(unixtime)
+        Seq(logTime, v)
       }
       (packing.size, ByteString(MsgPack.pack(Seq(tag, packing))))
     }
