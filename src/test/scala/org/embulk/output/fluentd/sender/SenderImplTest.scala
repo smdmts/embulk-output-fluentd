@@ -57,7 +57,7 @@ class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
       port = actorManager.port,
       groupedSize = 1,
       asyncSize = 1,
-      SenderFlowImpl("tag", 0),
+      SenderFlowImpl("tag", 0, None),
       actorManager
     )
 
