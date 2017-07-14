@@ -36,7 +36,17 @@ class FluentdOutputPlugin extends OutputPlugin {
                        successTaskReports: util.List[TaskReport]): Unit = {}
 
   override def open(taskSource: TaskSource, schema: Schema, taskIndex: Int): TransactionalPageOutput = {
-    FluentdTransactionalPageOutput(taskSource, schema, taskIndex, FluentdOutputPlugin.sender.get)
+    FluentdOutputPlugin.sender match {
+      case Some(v) =>
+        FluentdTransactionalPageOutput(taskSource, schema, taskIndex, v)
+      case None => // for map/reduce executor.
+        val task = taskSource.loadTask(classOf[PluginTask])
+        SenderBuilder(task).withSession { session =>
+          val sender = session.build[Sender]
+          FluentdOutputPlugin.sender = Option(sender)
+          FluentdTransactionalPageOutput(taskSource, schema, taskIndex, sender)
+        }
+    }
   }
 
 }

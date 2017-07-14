@@ -16,6 +16,7 @@ trait Sender {
   val instance: SourceQueueWithComplete[Seq[Map[String, AnyRef]]]
   def apply(value: () => Iterator[Map[String, AnyRef]]): Future[QueueOfferResult]
   def tcpHandling(size: Int, byteString: ByteString): Future[Done]
+  def waitForComplete(): Result
 }
 
 case class SenderImpl private[sender] (host: String,
