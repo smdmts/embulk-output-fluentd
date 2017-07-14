@@ -14,7 +14,7 @@ object SenderBuilder {
     implicit val system = ActorSystem("fluentd-sender")
     newDesign
       .bind[SenderFlow]
-      .toInstance(SenderFlowImpl(task.getTag, Instant.now().getEpochSecond))
+      .toInstance(SenderFlowImpl(task.getTag, Instant.now().getEpochSecond, Option(task.getTimeKey)))
       .bind[ActorManager]
       .toInstance(ActorManagerImpl())
       .bind[Sender]

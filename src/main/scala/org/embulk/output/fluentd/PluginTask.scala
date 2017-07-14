@@ -28,4 +28,7 @@ trait PluginTask extends Task with TimestampFormatter.Task {
   @Config("tag")
   def getTag: String
 
+  @Config("time_key")
+  def getTimeKey: String
+
 }

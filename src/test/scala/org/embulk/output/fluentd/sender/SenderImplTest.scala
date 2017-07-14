@@ -3,7 +3,6 @@ package org.embulk.output.fluentd.sender
 import akka.actor.ActorSystem
 import akka.stream._
 import akka.stream.scaladsl._
-import akka.pattern.ask
 import akka.util.{ByteString, Timeout}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import org.embulk.output.fluentd.TestActorManager
@@ -29,7 +28,7 @@ class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
       port = actorManager.port,
       groupedSize = 1,
       asyncSize = 1,
-      SenderFlowImpl("tag", 0),
+      SenderFlowImpl("tag", 0, None),
       actorManager
     )
 
@@ -73,7 +72,7 @@ class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
       port = 9999,
       groupedSize = 1,
       asyncSize = 1,
-      SenderFlowImpl("tag", 0),
+      SenderFlowImpl("tag", 0, None),
       actorManager,
       retryCount = 2, // 2 times
       retryDelayIntervalSecond = 1 // 1 seconds

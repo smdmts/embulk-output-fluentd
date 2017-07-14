@@ -14,6 +14,7 @@
 |  host                                | string      | optional   | "127.0.0.1"              | fluentd servers host   |
 |  port                                | integer     | optional   | "24224"                  | fluentd servers port   |
 |  tag                                 | string      | required   |                          | tag of logs            |
+|  time_key                            | string      | optional   |                          | using timekey. (if empty parameter then using current unixtime) |
 |  async_size                          | integer     | optional   | "1"                      | asynchronous parallelism size |
 |  request_grouping_size               | integer     | optional   | "100"                    | sending request grouping size (*1) |
 |  request_per_seconds                 | integer     | optional   | "0"                      | Sending throttle requests in per seconds. (default 0 is non throttle) (*2) |
