@@ -12,9 +12,12 @@ object SenderBuilder {
   def apply(task: PluginTask): Design = {
     implicit val logger = Exec.getLogger(classOf[Sender])
     implicit val system = ActorSystem("fluentd-sender")
+    val timeKeyOpt = if (task.getTimeKey.isPresent) {
+      Some(task.getTimeKey.get())
+    } else None
     newDesign
       .bind[SenderFlow]
-      .toInstance(SenderFlowImpl(task.getTag, Instant.now().getEpochSecond, Option(task.getTimeKey)))
+      .toInstance(SenderFlowImpl(task.getTag, Instant.now().getEpochSecond, timeKeyOpt))
       .bind[ActorManager]
       .toInstance(ActorManagerImpl())
       .bind[Sender]
