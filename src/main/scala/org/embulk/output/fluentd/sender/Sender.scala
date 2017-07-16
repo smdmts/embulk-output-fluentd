@@ -30,7 +30,7 @@ case class SenderImpl private[sender] (host: String,
                                        retryDelayIntervalSecond: Int = 10)(implicit logger: Logger)
     extends Sender {
   import actorManager._
-
+  var closed = false
   system.scheduler.schedule(0.seconds, 30.seconds, supervisor, LogStatus(logger))
 
   val retryDelayIntervalSecondDuration: FiniteDuration = retryDelayIntervalSecond.seconds
@@ -42,26 +42,33 @@ case class SenderImpl private[sender] (host: String,
   }
 
   def close(): Unit = {
-    // wait for akka-stream termination.
-    instance.complete()
-    val result = waitForComplete()
-    Await.result(actorManager.terminate(), Duration.Inf)
-    actorManager.system.terminate()
-    logger.info(
-      s"Transaction was closed. recordCount:${result.record} completedCount:${result.complete} retriedRecordCount:${result.retried}")
+    closed.synchronized {
+      if (!closed) {
+        // wait for akka-stream termination.
+        instance.complete()
+        val result = waitForComplete()
+        Await.result(actorManager.terminate(), Duration.Inf)
+        actorManager.system.terminate()
+        logger.info(
+          s"Transaction was closed. recordCount:${result.record} completedCount:${result.complete} retriedRecordCount:${result.retried}")
+        closed = true
+      }
+    }
   }
 
   def waitForComplete(): Result = {
     var result: Option[Result] = None
     implicit val timeout       = Timeout(5.seconds)
     while (result.isEmpty) {
-      (actorManager.supervisor ? GetStatus).onSuccess {
-        case Result(recordCount, complete, failed, retried) =>
+      (actorManager.supervisor ? GetStatus).onComplete {
+        case Success(Result(recordCount, complete, failed, retried)) =>
           if (recordCount == (complete + failed)) {
             result = Some(Result(recordCount, complete, failed, retried))
           }
-        case Stop(recordCount, complete, failed, retried) =>
+        case Success(Stop(recordCount, complete, failed, retried)) =>
           result = Some(Result(recordCount, complete, failed, retried))
+        case _ =>
+          sys.error("fail of wait complete.")
       }
       Thread.sleep(1000)
     }

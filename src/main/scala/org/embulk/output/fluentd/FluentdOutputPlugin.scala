@@ -15,13 +15,10 @@ class FluentdOutputPlugin extends OutputPlugin {
                            control: OutputPlugin.Control): ConfigDiff = {
     Logger.setDefaultLogLevel(LogLevel.OFF)
     val task = config.loadConfig(classOf[PluginTask])
-    SenderBuilder(task).withSession { session =>
-      val sender = session.build[Sender]
-      FluentdOutputPlugin.sender = Option(sender)
-      control.run(task.dump())
-      sender.close()
-      Exec.newConfigDiff
-    }
+    FluentdOutputPlugin.executeTransaction = true
+    FluentdOutputPlugin.taskCountOpt = Some(taskCount)
+    control.run(task.dump())
+    Exec.newConfigDiff
   }
 
   override def resume(taskSource: TaskSource,
@@ -33,7 +30,8 @@ class FluentdOutputPlugin extends OutputPlugin {
   override def cleanup(taskSource: TaskSource,
                        schema: Schema,
                        taskCount: Int,
-                       successTaskReports: util.List[TaskReport]): Unit = {}
+                       successTaskReports: util.List[TaskReport]): Unit = {
+  }
 
   override def open(taskSource: TaskSource, schema: Schema, taskIndex: Int): TransactionalPageOutput = {
     FluentdOutputPlugin.sender match {
@@ -52,5 +50,7 @@ class FluentdOutputPlugin extends OutputPlugin {
 }
 
 object FluentdOutputPlugin {
-  private var sender: Option[Sender] = None
+  var sender: Option[Sender] = None
+  var executeTransaction:Boolean = false
+  var taskCountOpt:Option[Int] = None
 }

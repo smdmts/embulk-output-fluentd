@@ -3,15 +3,17 @@ package org.embulk.output.fluentd.sender
 import akka.actor._
 import org.slf4j.Logger
 
-class Counter extends Actor {
+class SuperVisor extends Actor {
   var complete = 0
   var failed   = 0
   var retried  = 0
   var counter  = 0
+  var closed   = false
   override def receive: Receive = {
     case Record(v) =>
       counter = counter + v
-    case Complete(v) => complete = complete + v
+    case Complete(v) =>
+      complete = complete + v
     case Failed(v)   => failed = failed + v
     case Retried(v)  => retried = retried + v
     case GetStatus =>

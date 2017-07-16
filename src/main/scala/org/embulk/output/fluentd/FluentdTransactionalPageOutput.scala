@@ -36,5 +36,12 @@ case class FluentdTransactionalPageOutput(taskSource: TaskSource, schema: Schema
   override def commit(): TaskReport = Exec.newTaskReport
   override def abort(): Unit        = ()
   override def finish(): Unit       = ()
-  override def close(): Unit        = ()
+  override def close(): Unit        = {
+    if (!FluentdOutputPlugin.executeTransaction) {
+      sender.close()
+    }
+    if(FluentdOutputPlugin.executeTransaction && FluentdOutputPlugin.taskCountOpt.contains(taskIndex + 1)) {
+      sender.close()
+    }
+  }
 }
