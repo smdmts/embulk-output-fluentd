@@ -17,7 +17,9 @@ resolvers += "velvia maven" at "http://dl.bintray.com/velvia/maven"
 libraryDependencies ++= Seq(
   "org.jruby" % "jruby-complete" % "1.6.5",
   "org.embulk" % "embulk-core" % "0.8.25",
+  "com.typesafe.akka" %% "akka-actor" % "2.5.3",
   "com.typesafe.akka" %% "akka-stream" % "2.5.3",
+  "com.typesafe.akka" %% "akka-slf4j" % "2.5.3",
   "org.velvia" %% "msgpack4s" % "0.6.0",
   "org.wvlet" %% "airframe" % "0.15",
   "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.3" % Test,
