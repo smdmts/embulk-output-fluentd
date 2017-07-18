@@ -30,8 +30,7 @@ class FluentdOutputPlugin extends OutputPlugin {
   override def cleanup(taskSource: TaskSource,
                        schema: Schema,
                        taskCount: Int,
-                       successTaskReports: util.List[TaskReport]): Unit = {
-  }
+                       successTaskReports: util.List[TaskReport]): Unit = {}
 
   override def open(taskSource: TaskSource, schema: Schema, taskIndex: Int): TransactionalPageOutput = {
     FluentdOutputPlugin.sender match {
@@ -50,7 +49,7 @@ class FluentdOutputPlugin extends OutputPlugin {
 }
 
 object FluentdOutputPlugin {
-  var sender: Option[Sender] = None
-  var executeTransaction:Boolean = false
-  var taskCountOpt:Option[Int] = None
+  var sender: Option[Sender]      = None
+  var executeTransaction: Boolean = false
+  var taskCountOpt: Option[Int]   = None
 }

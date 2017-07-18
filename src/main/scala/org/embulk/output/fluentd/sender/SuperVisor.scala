@@ -14,8 +14,8 @@ class SuperVisor extends Actor {
       counter = counter + v
     case Complete(v) =>
       complete = complete + v
-    case Failed(v)   => failed = failed + v
-    case Retried(v)  => retried = retried + v
+    case Failed(v)  => failed = failed + v
+    case Retried(v) => retried = retried + v
     case GetStatus =>
       if (failed == 0) {
         sender() ! Result(counter, complete, failed, retried)
