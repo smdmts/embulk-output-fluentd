@@ -15,7 +15,6 @@ class FluentdOutputPlugin extends OutputPlugin {
                            control: OutputPlugin.Control): ConfigDiff = {
     Logger.setDefaultLogLevel(LogLevel.OFF)
     val task = config.loadConfig(classOf[PluginTask])
-    FluentdOutputPlugin.executeTransaction = true
     FluentdOutputPlugin.taskCountOpt = Some(taskCount)
     control.run(task.dump())
     Exec.newConfigDiff
@@ -34,14 +33,14 @@ class FluentdOutputPlugin extends OutputPlugin {
 
   override def open(taskSource: TaskSource, schema: Schema, taskIndex: Int): TransactionalPageOutput = {
     FluentdOutputPlugin.sender match {
-      case Some(v) =>
-        FluentdTransactionalPageOutput(taskSource, schema, taskIndex, v)
-      case None => // for map/reduce executor.
+      case Some(sender) =>
+        FluentdTransactionalPageOutput(taskSource, schema, taskIndex, FluentdOutputPlugin.taskCountOpt, sender)
+      case None =>
         val task = taskSource.loadTask(classOf[PluginTask])
         SenderBuilder(task).withSession { session =>
           val sender = session.build[Sender]
           FluentdOutputPlugin.sender = Option(sender)
-          FluentdTransactionalPageOutput(taskSource, schema, taskIndex, sender)
+          FluentdTransactionalPageOutput(taskSource, schema, taskIndex, FluentdOutputPlugin.taskCountOpt, sender)
         }
     }
   }
@@ -49,7 +48,6 @@ class FluentdOutputPlugin extends OutputPlugin {
 }
 
 object FluentdOutputPlugin {
-  var sender: Option[Sender]      = None
-  var executeTransaction: Boolean = false
-  var taskCountOpt: Option[Int]   = None
+  var sender: Option[Sender]    = None
+  var taskCountOpt: Option[Int] = None
 }

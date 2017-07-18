@@ -6,7 +6,11 @@ import org.embulk.output.fluentd.sender.Sender
 import org.embulk.spi._
 import org.embulk.spi.time.TimestampFormatter
 
-case class FluentdTransactionalPageOutput(taskSource: TaskSource, schema: Schema, taskIndex: Int, sender: Sender)
+case class FluentdTransactionalPageOutput(taskSource: TaskSource,
+                                          schema: Schema,
+                                          taskIndex: Int,
+                                          taskCountOpt: Option[Int],
+                                          sender: Sender)
     extends TransactionalPageOutput {
 
   val task: PluginTask = taskSource.loadTask(classOf[PluginTask])
@@ -37,10 +41,12 @@ case class FluentdTransactionalPageOutput(taskSource: TaskSource, schema: Schema
   override def abort(): Unit        = ()
   override def finish(): Unit       = ()
   override def close(): Unit = {
-    if (!FluentdOutputPlugin.executeTransaction) {
+    // for map/reduce executor.
+    if (taskCountOpt.isEmpty) {
+      // close immediately.
       sender.close()
     }
-    if (FluentdOutputPlugin.executeTransaction && FluentdOutputPlugin.taskCountOpt.contains(taskIndex + 1)) {
+    if (taskCountOpt.contains(taskIndex + 1)) {
       sender.close()
     }
   }

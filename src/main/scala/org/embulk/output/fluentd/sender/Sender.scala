@@ -50,7 +50,7 @@ case class SenderImpl private[sender] (host: String,
         Await.result(actorManager.terminate(), Duration.Inf)
         actorManager.system.terminate()
         logger.info(
-          s"Transaction was closed. recordCount:${result.record} completedCount:${result.complete} retriedRecordCount:${result.retried}")
+          s"PageOutput was closing. RecordCount:${result.record} completedCount:${result.complete} retriedRecordCount:${result.retried}")
         closed = true
       }
     }
