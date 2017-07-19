@@ -44,19 +44,19 @@ case class SenderImpl private[sender] (host: String,
     val f: Future[ClosedStatus] = (actorManager.supervisor ? Close).mapTo[ClosedStatus]
     val result                  = Await.result(f, Duration.Inf)
     if (!result.alreadyClosed) {
-      logger.info("wait for closing.")
+      logger.debug("wait for closing.")
       // wait for akka-stream termination.
       instance.complete()
       val result = waitForComplete()
       Await.result(actorManager.terminate(), Duration.Inf)
       actorManager.system.terminate()
       logger.info(
-        s"PageOutput was closing. RecordCount:${result.record} completedCount:${result.complete} retriedRecordCount:${result.retried}")
+        s"Completed RecordCount:${result.record} completedCount:${result.complete} retriedRecordCount:${result.retried}")
     }
   }
 
   def waitForComplete(): Result = {
-    logger.info("wait for complete.")
+    logger.debug("wait for complete.")
     var result: Option[Result] = None
     implicit val timeout       = Timeout(5.seconds)
     while (result.isEmpty) {
