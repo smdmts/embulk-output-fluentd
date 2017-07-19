@@ -22,6 +22,12 @@ class SuperVisor extends Actor {
       } else {
         sender() ! Stop(counter, complete, failed, retried)
       }
+    case Close =>
+      val result = ClosedStatus(closed)
+      if (!closed) {
+        closed = true
+      }
+      sender() ! result
     case LogStatus(logger) =>
       logger.info(
         s"$counter was queued and $complete records was completed. $failed records was failed and retried $retried records.")
@@ -31,6 +37,8 @@ class SuperVisor extends Actor {
 case class Result(record: Int, complete: Int, failed: Int, retried: Int)
 case object GetStatus
 case class Stop(record: Int, complete: Int, failed: Int, retried: Int)
+case object Close
+case class ClosedStatus(alreadyClosed: Boolean)
 case class LogStatus(logger: Logger)
 case class Record(count: Int)   extends AnyVal
 case class Complete(count: Int) extends AnyVal

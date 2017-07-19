@@ -14,7 +14,7 @@ import scala.util._
 trait Sender {
   def close(): Unit
   val instance: SourceQueueWithComplete[Seq[Map[String, AnyRef]]]
-  def apply(value: () => Iterator[Map[String, AnyRef]]): Future[QueueOfferResult]
+  def apply(value: Seq[Map[String, AnyRef]]): Future[QueueOfferResult]
   def tcpHandling(size: Int, byteString: ByteString): Future[Done]
   def waitForComplete(): Result
 }
@@ -30,38 +30,39 @@ case class SenderImpl private[sender] (host: String,
                                        retryDelayIntervalSecond: Int = 10)(implicit logger: Logger)
     extends Sender {
   import actorManager._
-  var closed = false
   system.scheduler.schedule(0.seconds, 30.seconds, supervisor, LogStatus(logger))
 
   val retryDelayIntervalSecondDuration: FiniteDuration = retryDelayIntervalSecond.seconds
 
-  def apply(value: () => Iterator[Map[String, AnyRef]]): Future[QueueOfferResult] = {
-    val request = value().toSeq
-    actorManager.supervisor ! Record(request.size)
-    instance.offer(request)
+  def apply(value: Seq[Map[String, AnyRef]]): Future[QueueOfferResult] = {
+    actorManager.supervisor ! Record(value.size)
+    instance.offer(value)
   }
 
   def close(): Unit = {
-    closed.synchronized {
-      if (!closed) {
-        // wait for akka-stream termination.
-        instance.complete()
-        val result = waitForComplete()
-        Await.result(actorManager.terminate(), Duration.Inf)
-        actorManager.system.terminate()
-        logger.info(
-          s"PageOutput was closing. RecordCount:${result.record} completedCount:${result.complete} retriedRecordCount:${result.retried}")
-        closed = true
-      }
+    implicit val timeout   = Timeout(5.seconds)
+    val f: Future[Boolean] = (actorManager.supervisor ? Close).mapTo[Boolean]
+    val result             = Await.result(f, Duration.Inf)
+    if (!result) {
+      logger.info("wait for closing.")
+      // wait for akka-stream termination.
+      instance.complete()
+      val result = waitForComplete()
+      Await.result(actorManager.terminate(), Duration.Inf)
+      actorManager.system.terminate()
+      logger.info(
+        s"PageOutput was closing. RecordCount:${result.record} completedCount:${result.complete} retriedRecordCount:${result.retried}")
     }
   }
 
   def waitForComplete(): Result = {
+    logger.info("wait complete.")
     var result: Option[Result] = None
     implicit val timeout       = Timeout(5.seconds)
     while (result.isEmpty) {
       (actorManager.supervisor ? GetStatus).onComplete {
         case Success(Result(recordCount, complete, failed, retried)) =>
+          logger.info(s"current status ${Result(recordCount, complete, failed, retried)}")
           if (recordCount == (complete + failed)) {
             result = Some(Result(recordCount, complete, failed, retried))
           }
@@ -70,7 +71,7 @@ case class SenderImpl private[sender] (host: String,
         case _ =>
           sys.error("fail of wait complete.")
       }
-      Thread.sleep(1000)
+      Thread.sleep(5000)
     }
     result.get
   }
