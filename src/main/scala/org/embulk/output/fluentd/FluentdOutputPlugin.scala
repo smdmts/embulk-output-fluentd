@@ -32,19 +32,20 @@ class FluentdOutputPlugin extends OutputPlugin {
                        successTaskReports: util.List[TaskReport]): Unit = {}
 
   override def open(taskSource: TaskSource, schema: Schema, taskIndex: Int): TransactionalPageOutput = {
-    FluentdOutputPlugin.sender match {
-      case Some(sender) =>
-        FluentdTransactionalPageOutput(taskSource, schema, taskIndex, FluentdOutputPlugin.taskCountOpt, sender)
-      case None =>
-        val task = taskSource.loadTask(classOf[PluginTask])
-        SenderBuilder(task).withSession { session =>
-          val sender = session.build[Sender]
-          FluentdOutputPlugin.sender = Option(sender)
+    FluentdOutputPlugin.sender.synchronized {
+      FluentdOutputPlugin.sender match {
+        case Some(sender) =>
           FluentdTransactionalPageOutput(taskSource, schema, taskIndex, FluentdOutputPlugin.taskCountOpt, sender)
-        }
+        case None =>
+          val task = taskSource.loadTask(classOf[PluginTask])
+          SenderBuilder(task).withSession { session =>
+            val sender = session.build[Sender]
+            FluentdOutputPlugin.sender = Option(sender)
+            FluentdTransactionalPageOutput(taskSource, schema, taskIndex, FluentdOutputPlugin.taskCountOpt, sender)
+          }
+      }
     }
   }
-
 }
 
 object FluentdOutputPlugin {
