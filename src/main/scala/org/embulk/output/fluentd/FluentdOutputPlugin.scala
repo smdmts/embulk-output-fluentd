@@ -17,6 +17,7 @@ class FluentdOutputPlugin extends OutputPlugin {
     val task = config.loadConfig(classOf[PluginTask])
     FluentdOutputPlugin.taskCountOpt = Some(taskCount)
     control.run(task.dump())
+    FluentdOutputPlugin.sender.foreach(_.close())
     Exec.newConfigDiff
   }
 

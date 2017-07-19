@@ -41,16 +41,13 @@ case class FluentdTransactionalPageOutput(taskSource: TaskSource,
   override def commit(): TaskReport = Exec.newTaskReport
   override def abort(): Unit        = ()
   override def finish(): Unit = {
-    logger.info(s"finished at " + this)
+    logger.debug(s"finished at " + this)
     // for map/reduce executor.
     if (taskCountOpt.isEmpty) {
+      logger.info("test")
       // close immediately.
       sender.close()
     }
   }
-  override def close(): Unit = {
-    if (taskCountOpt.contains(taskIndex + 1)) {
-      sender.close()
-    }
-  }
+  override def close(): Unit = ()
 }
