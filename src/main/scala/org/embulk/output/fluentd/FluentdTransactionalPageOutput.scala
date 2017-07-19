@@ -44,7 +44,6 @@ case class FluentdTransactionalPageOutput(taskSource: TaskSource,
     logger.debug(s"finished at " + this)
     // for map/reduce executor.
     if (taskCountOpt.isEmpty) {
-      logger.info("test")
       // close immediately.
       sender.close()
     }
