@@ -41,9 +41,9 @@ case class SenderImpl private[sender] (host: String,
 
   def close(): Unit = {
     implicit val timeout   = Timeout(5.seconds)
-    val f: Future[Boolean] = (actorManager.supervisor ? Close).mapTo[Boolean]
+    val f: Future[ClosedStatus] = (actorManager.supervisor ? Close).mapTo[ClosedStatus]
     val result             = Await.result(f, Duration.Inf)
-    if (!result) {
+    if (!result.alreadyClosed) {
       logger.info("wait for closing.")
       // wait for akka-stream termination.
       instance.complete()
