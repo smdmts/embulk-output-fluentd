@@ -1,5 +1,6 @@
 package org.embulk.output.fluentd
 
+import com.google.common.base.Optional
 import org.embulk.config.{Config, ConfigDefault, Task}
 import org.embulk.spi.time.TimestampFormatter
 
@@ -29,6 +30,7 @@ trait PluginTask extends Task with TimestampFormatter.Task {
   def getTag: String
 
   @Config("time_key")
-  def getTimeKey: String
+  @ConfigDefault("null")
+  def getTimeKey: Optional[String]
 
 }
