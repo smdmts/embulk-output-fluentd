@@ -56,13 +56,13 @@ case class SenderImpl private[sender] (host: String,
   }
 
   def waitForComplete(): Result = {
-    logger.info("wait complete.")
+    logger.info("wait for complete.")
     var result: Option[Result] = None
     implicit val timeout       = Timeout(5.seconds)
     while (result.isEmpty) {
       (actorManager.supervisor ? GetStatus).onComplete {
         case Success(Result(recordCount, complete, failed, retried)) =>
-          logger.info(s"current status ${Result(recordCount, complete, failed, retried)}")
+          logger.debug(s"current status ${Result(recordCount, complete, failed, retried)}")
           if (recordCount == (complete + failed)) {
             result = Some(Result(recordCount, complete, failed, retried))
           }
