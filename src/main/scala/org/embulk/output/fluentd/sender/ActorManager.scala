@@ -6,7 +6,7 @@ import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 import scala.concurrent.{ExecutionContext, Future}
 
 case class ActorManagerImpl(implicit val system: ActorSystem) extends ActorManager {
-  val supervisor: ActorRef = system.actorOf(Props[Counter])
+  val supervisor: ActorRef = system.actorOf(Props[SuperVisor])
   val decider: Supervision.Decider = {
     case _: Exception => Supervision.Resume
     case _            => Supervision.Stop

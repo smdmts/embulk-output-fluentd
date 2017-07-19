@@ -34,7 +34,7 @@ case class TestActorManager(s: ActorSystem) extends ActorManager {
         false
     }
 
-  val testActorRef = TestActorRef(new Counter)
+  val testActorRef = TestActorRef(new SuperVisor)
 
   override val supervisor: ActorRef                     = testActorRef
   override implicit val materializer: ActorMaterializer = ActorMaterializer()

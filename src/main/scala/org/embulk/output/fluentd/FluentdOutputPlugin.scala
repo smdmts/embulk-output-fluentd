@@ -15,13 +15,9 @@ class FluentdOutputPlugin extends OutputPlugin {
                            control: OutputPlugin.Control): ConfigDiff = {
     Logger.setDefaultLogLevel(LogLevel.OFF)
     val task = config.loadConfig(classOf[PluginTask])
-    SenderBuilder(task).withSession { session =>
-      val sender = session.build[Sender]
-      FluentdOutputPlugin.sender = Option(sender)
-      control.run(task.dump())
-      sender.close()
-      Exec.newConfigDiff
-    }
+    FluentdOutputPlugin.taskCountOpt = Some(taskCount)
+    control.run(task.dump())
+    Exec.newConfigDiff
   }
 
   override def resume(taskSource: TaskSource,
@@ -36,11 +32,22 @@ class FluentdOutputPlugin extends OutputPlugin {
                        successTaskReports: util.List[TaskReport]): Unit = {}
 
   override def open(taskSource: TaskSource, schema: Schema, taskIndex: Int): TransactionalPageOutput = {
-    FluentdTransactionalPageOutput(taskSource, schema, taskIndex, FluentdOutputPlugin.sender.get)
+    FluentdOutputPlugin.sender match {
+      case Some(sender) =>
+        FluentdTransactionalPageOutput(taskSource, schema, taskIndex, FluentdOutputPlugin.taskCountOpt, sender)
+      case None =>
+        val task = taskSource.loadTask(classOf[PluginTask])
+        SenderBuilder(task).withSession { session =>
+          val sender = session.build[Sender]
+          FluentdOutputPlugin.sender = Option(sender)
+          FluentdTransactionalPageOutput(taskSource, schema, taskIndex, FluentdOutputPlugin.taskCountOpt, sender)
+        }
+    }
   }
 
 }
 
 object FluentdOutputPlugin {
-  private var sender: Option[Sender] = None
+  var sender: Option[Sender]    = None
+  var taskCountOpt: Option[Int] = None
 }

@@ -74,8 +74,7 @@ class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
     actorManager.system.terminate()
   }
 
-  def recode: () => Iterator[Map[String, AnyRef]] =
-    () => Seq(Map[String, AnyRef]("a" -> Int.box(1), "b" -> "c")).toIterator
+  def recode: Seq[Map[String, AnyRef]] = Seq(Map[String, AnyRef]("a" -> Int.box(1), "b" -> "c"))
 
   def bootDummyServer(system: ActorSystem, address: String, port: Int, duration: Duration): Unit = {
     implicit val sys          = system
@@ -106,8 +105,7 @@ class SenderImplTest extends FlatSpecLike with Matchers with BeforeAndAfterAll {
       retryDelayIntervalSecond = 1 // 1 seconds
     )
 
-    val recode: () => Iterator[Map[String, AnyRef]] =
-      () => Seq(Map[String, AnyRef]("a" -> Int.box(1), "b" -> "c")).toIterator
+    val recode = Seq(Map[String, AnyRef]("a" -> Int.box(1), "b" -> "c"))
     sender(recode)
     sender.waitForComplete()
 
