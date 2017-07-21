@@ -97,54 +97,45 @@ case class SenderImpl private[sender] (host: String,
       .run()
   }
 
-  def sendCommand(size: Int, byteString: ByteString): Future[Done] = {
-    val futureCommand = tcpOutgoing(size, byteString)
-    futureCommand.onComplete {
-      case Success(_) =>
-        actorManager.supervisor ! Complete(size)
-      case Failure(e) =>
-        actorManager.supervisor ! Failed(size)
-        instance.complete()
-        logger.error(
-          s"Sending fluentd retry count is over and will be terminate soon. Please check your fluentd environment.",
-          e)
-        sys.error("Sending fluentd was terminated cause of retry count over.")
-    }
-    futureCommand
-  }
-
   val connection: Flow[ByteString, ByteString, Future[Tcp.OutgoingConnection]] = Tcp().outgoingConnection(
     InetSocketAddress.createUnresolved(host, port),
     None,
-    List(ReuseAddress(true)),
+    List(ReuseAddress(false)),
     halfClose = true,
     Duration(3, TimeUnit.MINUTES),
     Duration(3, TimeUnit.MINUTES)
   )
 
-  def tcpOutgoing(size: Int, byteString: ByteString): Future[Done] = {
+  def sendCommand(size: Int, byteString: ByteString): Future[Done] = {
     val command = Source
       .single(byteString)
-      .mapAsync(1) { v =>
-        Source
-          .single(v)
-          .via(connection)
-          .toMat(Sink.ignore)(Keep.right)
-          .run()
+      .via(connection)
+    def _sendCommand(size: Int, c: Int)(retried: Boolean): Future[Done] = {
+      val futureCommand = command.runWith(Sink.ignore)
+      futureCommand.onComplete {
+        case Success(_) =>
+          actorManager.supervisor ! Complete(size)
+        case Failure(e) if c > 0 =>
+          logger.info(
+            s"Sending fluentd ${size.toString} records was failed. - will retry ${c - 1} more times ${retryDelayIntervalSecondDuration.toSeconds} seconds later.",
+            e)
+          actorManager.supervisor ! Retried(size)
+          Thread.sleep(retryDelayIntervalSecondDuration.toSeconds)
+          _sendCommand(size, c - 1)(retried = true)
+        case Failure(e) =>
+          actorManager.supervisor ! Failed(size)
+          logger.error(
+            s"Sending fluentd retry count is over and will be terminate soon. Please check your fluentd environment.",
+            e)
+          sys.error("Sending fluentd was terminated cause of retry count over.")
+          instance.complete()
       }
-    command
-      .recoverWithRetries(
-        retryCount, {
-          case v: Throwable =>
-            logger.info(
-              s"Sending fluentd ${size.toString} records was failed. - will retry ${retryDelayIntervalSecondDuration.toSeconds} seconds later.",
-              v)
-            actorManager.supervisor ! Retried(size)
-            command.initialDelay(retryDelayIntervalSecondDuration)
-        }
-      )
-      .toMat(Sink.ignore)(Keep.right)
-      .run()
+      futureCommand
+    }
+    _sendCommand(size, retryCount)(retried = false).recoverWith {
+      case _: Exception =>
+        Future.successful(Done)
+    }
   }
 
 }
