@@ -1,6 +1,10 @@
 package org.embulk.output.fluentd.sender
 
+import java.net.InetSocketAddress
+import java.util.concurrent.TimeUnit
+
 import akka._
+import akka.io.Inet.SO.ReuseAddress
 import akka.pattern.ask
 import akka.stream._
 import akka.stream.scaladsl._
@@ -15,7 +19,7 @@ trait Sender {
   def close(): Unit
   val instance: SourceQueueWithComplete[Seq[Map[String, AnyRef]]]
   def apply(value: Seq[Map[String, AnyRef]]): Future[QueueOfferResult]
-  def tcpHandling(size: Int, byteString: ByteString): Future[Done]
+  def sendCommand(size: Int, byteString: ByteString): Future[Done]
   def waitForComplete(): Result
 }
 
@@ -87,45 +91,60 @@ case class SenderImpl private[sender] (host: String,
     withThrottle
       .mapAsync(asyncSize) {
         case (size, byteString) =>
-          tcpHandling(size, byteString)
+          sendCommand(size, byteString)
       }
       .to(Sink.ignore)
       .run()
   }
 
-  def sendCommand(byteString: ByteString): Future[Done] =
-    Source
-      .single(byteString)
-      .via(senderFlow.tcpConnectionFlow(host, port))
-      .runWith(Sink.ignore)
+  def sendCommand(size: Int, byteString: ByteString): Future[Done] = {
+    val futureCommand = tcpOutgoing(size, byteString)
+    futureCommand.onComplete {
+      case Success(_) =>
+        actorManager.supervisor ! Complete(size)
+      case Failure(e) =>
+        actorManager.supervisor ! Failed(size)
+        instance.complete()
+        logger.error(
+          s"Sending fluentd retry count is over and will be terminate soon. Please check your fluentd environment.",
+          e)
+        sys.error("Sending fluentd was terminated cause of retry count over.")
+    }
+    futureCommand
+  }
 
-  def tcpHandling(size: Int, byteString: ByteString): Future[Done] = {
-    def _tcpHandling(size: Int, byteString: ByteString, c: Int)(retried: Boolean): Future[Done] = {
-      val futureCommand = sendCommand(byteString)
-      futureCommand.onComplete {
-        case Success(_) =>
-          actorManager.supervisor ! Complete(size)
-        case Failure(e) if c > 0 =>
-          logger.info(
-            s"Sending fluentd ${size.toString} records was failed. - will retry ${c - 1} more times ${retryDelayIntervalSecondDuration.toSeconds} seconds later.",
-            e)
-          actorManager.supervisor ! Retried(size)
-          akka.pattern.after(retryDelayIntervalSecondDuration, actorManager.system.scheduler)(
-            _tcpHandling(size, byteString, c - 1)(retried = true))
-        case Failure(e) =>
-          actorManager.supervisor ! Failed(size)
-          logger.error(
-            s"Sending fluentd retry count is over and will be terminate soon. Please check your fluentd environment.",
-            e)
-          sys.error("Sending fluentd was terminated cause of retry count over.")
-          instance.complete()
+  val connection: Flow[ByteString, ByteString, Future[Tcp.OutgoingConnection]] = Tcp().outgoingConnection(
+    InetSocketAddress.createUnresolved(host, port),
+    None,
+    List(ReuseAddress(true)),
+    halfClose = true,
+    Duration(3, TimeUnit.MINUTES),
+    Duration(3, TimeUnit.MINUTES)
+  )
+
+  def tcpOutgoing(size: Int, byteString: ByteString): Future[Done] = {
+    val command = Source
+      .single(byteString)
+      .mapAsync(1) { v =>
+        Source
+          .single(v)
+          .via(connection)
+          .toMat(Sink.ignore)(Keep.right)
+          .run()
       }
-      futureCommand
-    }
-    _tcpHandling(size, byteString, retryCount)(retried = false).recoverWith {
-      case _: Exception =>
-        Future.successful(Done)
-    }
+    command
+      .recoverWithRetries(
+        retryCount, {
+          case v: Throwable =>
+            logger.info(
+              s"Sending fluentd ${size.toString} records was failed. - will retry ${retryDelayIntervalSecondDuration.toSeconds} seconds later.",
+              v)
+            actorManager.supervisor ! Retried(size)
+            command.initialDelay(retryDelayIntervalSecondDuration)
+        }
+      )
+      .toMat(Sink.ignore)(Keep.right)
+      .run()
   }
 
 }
