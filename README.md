@@ -1,7 +1,7 @@
 # Fluentd output plugin for Embulk
 
 ## Notice
-This plugin is support only Java8.
+This plugin is an *EXPERIMENTAL* and support only Java8.
 
 ## Overview
 
