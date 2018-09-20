@@ -11,7 +11,7 @@ case class ActorManagerImpl(implicit val system: ActorSystem) extends ActorManag
     case _: Exception => Supervision.Resume
     case _            => Supervision.Stop
   }
-  implicit val materializer = ActorMaterializer(
+  implicit val m: ActorMaterializer = ActorMaterializer(
     ActorMaterializerSettings(system)
       .withSupervisionStrategy(decider)
       .withDispatcher("blocking-dispatcher"))
@@ -23,7 +23,7 @@ case class ActorManagerImpl(implicit val system: ActorSystem) extends ActorManag
 trait ActorManager {
   implicit val system: ActorSystem
   val supervisor: ActorRef
-  implicit val materializer: ActorMaterializer
+  implicit val m: ActorMaterializer
   def terminate(): Future[Terminated] = system.terminate()
   implicit val dispatcher: ExecutionContext
 }
